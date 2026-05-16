@@ -2,7 +2,10 @@ import Complaint from "../models/Complaint.js";
 
 export const createComplaint = async (req,res)=>{
     try{
-        const complaint=await Complaint.create(req.body);
+        const complaint = await Complaint.create({
+            ...req.body,
+            status: "pending",
+        });
         res.status(201).json({
             success:true,
             data:complaint,
@@ -53,8 +56,6 @@ export const getComplaintById = async (req, res) => {
   }
 };
 
-// Update Complaint Status
-// Update Complaint Status
 export const updateComplaintStatus = async (req, res) => {
   try {
 
