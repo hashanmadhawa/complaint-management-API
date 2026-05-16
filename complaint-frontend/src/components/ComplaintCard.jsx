@@ -1,111 +1,106 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import API from "../services/api";
+import StatusBadge from "./StatusBadge";
+import { formatDate } from "../utils/dateUtils";
 
-function ComplaintCard({ complaint, fetchComplaints }) {
-  const [responseDraft, setResponseDraft] = useState(complaint.response ?? "");
+const STATUS_OPTIONS = ["pending", "in_progress", "resolved"];
 
-  useEffect(() => {
-    setResponseDraft(complaint.response ?? "");
-  }, [complaint._id, complaint.response]);
+export default function ComplaintCard({ complaint, onClick, onUpdated, onDeleted }) {
+  const [status, setStatus] = useState(complaint.status);
+  const [saving, setSaving] = useState(false);
+  const [saved,  setSaved]  = useState(false);
+  const [error,  setError]  = useState("");
 
-  const updateStatus = async (status) => {
+  const changed = status !== complaint.status;
+
+  const handleUpdate = async (e) => {
+    e.stopPropagation();
+    setSaving(true); setError("");
     try {
-      await API.put(`/${complaint._id}/status`, {
-        status,
-      });
-
-      fetchComplaints();
-    } catch (error) {
-      console.log(error);
+      const res = await API.put(`/${complaint._id}/status`, { status });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+      onUpdated?.(res.data.data);
+    } catch (err) {
+      setError(err?.response?.data?.message ?? "Update failed.");
+    } finally {
+      setSaving(false);
     }
   };
 
-  const deleteComplaint = async () => {
+  const handleDelete = async (e) => {
+    e.stopPropagation();
+    if (!window.confirm("Delete this complaint? This cannot be undone.")) return;
     try {
       await API.delete(`/${complaint._id}`);
-
-      fetchComplaints();
-    } catch (error) {
-      console.log(error);
-    }
-  };
-
-  const saveResponse = async () => {
-    try {
-      await API.put(`/${complaint._id}/response`, {
-        response: responseDraft.trim(),
-      });
-      alert("Response saved");
-      fetchComplaints();
-    } catch (error) {
-      console.error(error?.response?.data ?? error);
-      alert(
-        error?.response?.data?.message ??
-          "Could not save response. Check console."
-      );
+      onDeleted?.(complaint._id);
+    } catch (err) {
+      setError(err?.response?.data?.message ?? "Delete failed.");
     }
   };
 
   return (
-    <div className="card">
-      <h3>{complaint.title}</h3>
+    <div className="complaint-card" onClick={onClick}>
 
-      <p>{complaint.description}</p>
-
-      <p>
-        <strong>Category:</strong> {complaint.catagory}
-      </p>
-
-      <p>
-        <strong>Location:</strong> {complaint.location}
-      </p>
-
-      <p>
-        <strong>Status:</strong> {complaint.status}
-      </p>
-
-      {complaint.response && (
-        <p>
-          <strong>Current response:</strong> {complaint.response}
-        </p>
-      )}
-
-      <div className="response-block">
-        <label className="response-label" htmlFor={`response-${complaint._id}`}>
-          Add or update response
-        </label>
-        <textarea
-          id={`response-${complaint._id}`}
-          className="response-input"
-          rows={3}
-          placeholder="Type your reply to this complaint…"
-          value={responseDraft}
-          onChange={(e) => setResponseDraft(e.target.value)}
-        />
-        <button type="button" onClick={saveResponse}>
-          Save response
-        </button>
+      {/* Header row */}
+      <div className="card-header">
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <p className="card-title">{complaint.title}</p>
+          <div className="card-meta">
+            <span>{complaint.catagory}</span>
+            <span className="card-meta-dot" />
+            <span>{complaint.location}</span>
+          </div>
+        </div>
+        <StatusBadge status={complaint.status} />
       </div>
 
-      <div className="button-group">
-        <button onClick={() => updateStatus("pending")}>
-          Pending
+      {/* Description */}
+      <p className="card-desc">{complaint.description}</p>
+
+      {/* Footer — actions + date */}
+      <div className="card-footer" onClick={e => e.stopPropagation()}>
+        <select
+          className="status-select"
+          value={status}
+          onChange={e => { setStatus(e.target.value); setSaved(false); setError(""); }}
+        >
+          {STATUS_OPTIONS.map(s => (
+            <option key={s} value={s}>{s.replace("_", " ")}</option>
+          ))}
+        </select>
+
+        <button
+          className={`btn btn-sm ${saved ? "btn-success" : changed ? "btn-primary" : ""}`}
+          onClick={handleUpdate}
+          disabled={!changed || saving}
+        >
+          {saving ? "Saving…" : saved ? "✓ Saved" : "Update"}
         </button>
 
-        <button onClick={() => updateStatus("in_progress")}>
-          In Progress
-        </button>
-
-        <button onClick={() => updateStatus("resolved")}>
-          Resolved
-        </button>
-
-        <button onClick={deleteComplaint}>
+        <button
+          className="btn btn-sm btn-danger"
+          onClick={handleDelete}
+        >
           Delete
         </button>
+
+        <button
+          className="btn btn-sm"
+          onClick={onClick}
+          style={{ marginLeft: "auto" }}
+        >
+          Details →
+        </button>
+
+        {/* Submission date */}
+        <span className="card-date">
+          <span>🗓</span>
+          {formatDate(complaint.createdAt)}
+        </span>
       </div>
+
+      {error && <p className="card-error">⚠ {error}</p>}
     </div>
   );
 }
-
-export default ComplaintCard;
